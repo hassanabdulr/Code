@@ -1,0 +1,114 @@
+---
+title: "recruitment"
+output: html_document
+date: "`r Sys.Date()`"
+---
+load libraries 
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+```
+
+
+Load up data
+
+```{r}
+
+Participants <- read.csv("/home/aabdulrasul/Documents/Projects/SPINR/EConsentSPN30Identif_DATA_2024-09-05_1438.csv")
+
+# Run any pre-processing steps here that make the data readable - e.g, turn blanks "" into NA
+
+# Replace blank with NA
+
+replace_blank_with_na <- function(x) {
+  if (is.character(x)) {
+    x <- na_if(x, "")
+  }
+  return(x)
+}
+
+Participants <- Participants %>% mutate(across(everything(), ~ replace_blank_with_na(.)))
+  
+```
+
+
+We will use the signed form to determine when the participant was recruited into the study.
+
+```{r}
+
+# First, filter out the review_arm_1 as we want to know when participants signed and were recurited to the study (signed_arm_2)
+
+filtered_data <- Participants %>% filter(redcap_event_name == "signed_arm_2")
+
+
+# Now, we will use landing_page_timestamps to determine the date they were recruited into the study
+
+filtered_data$landing_page_timestamp <- as.Date(filtered_data$landing_page_timestamp, format = "%Y-%m-%d") # remove the time stamp and ensure the date is properly formatted
+
+```
+
+
+Summarizing recruitment 
+
+```{r}
+
+monthly_recruitment <- filtered_data %>% count(month = floor_date(landing_page_timestamp, "month")) %>% arrange(month) %>% mutate(cumulative_participants = cumsum(n))
+
+yearly_recruitment <- filtered_data %>% count(year = floor_date(landing_page_timestamp, "year")) %>% arrange(year) %>% mutate(cumulative_participants = cumsum(n))
+
+
+
+```
+
+
+Visualization (yearly)
+
+```{r}
+
+# monthly recruitment
+
+ggplot(yearly_recruitment, aes(x = year, y = n)) +
+  geom_line() +
+  labs(title = "Yearly Recruitment of Participants",
+       x = "Year",
+       y = "Number of Participant")
+
+
+# participants over time monthly
+
+ggplot(yearly_recruitment, aes (x= year, y=cumulative_participants))+
+  geom_line(color = "blue", size = 1) +
+  geom_line(color = "red", size = 1) +
+  
+  labs(title = "Cumulative Recruitment of Participants",
+       x = "Year",
+       y = "Number of Participant")
+```
+
+Visualization (monthly)
+
+```{r}
+
+# monthly recruitment
+
+ggplot(monthly_recruitment, aes(x = month, y = n)) +
+  geom_line() +
+  labs(title = "Monthly Recruitment of Participants",
+       x = "Month",
+       y = "Number of Participant")
+
+
+# participants over time monthly
+
+ggplot(monthly_recruitment, aes (x=month, y=cumulative_participants))+
+  geom_line(color = "blue", size = 1) +
+  geom_line(color = "red", size = 1) +
+  
+  labs(title = "Cumulative Recruitment of Participants",
+       x = "Month",
+       y = "Number of Participant")
+```
