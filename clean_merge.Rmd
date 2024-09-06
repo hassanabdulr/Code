@@ -14,7 +14,6 @@ library(lubridate)
 
 ```
 
-
 Load up data
 
 ```{r}
@@ -47,6 +46,27 @@ Arm3 <- Data %>% filter(grepl("_arm_3$", redcap_event_name)) # Control
 Arm4 <- Data %>% filter(grepl("_arm_4$", redcap_event_name)) # Repeat scan using some of the original study 
 ```
 
+Filter out time_points in Arm4
+
+```{r}
+
+# Specifically in Arm4 we have instances where record_ids have separate rows for their respective time points. We want to ensure the merging process does not treat these instances as one. As such we are going to filter out these instances and save them in a new data frame _tx2 
+
+Arm4_tx2 <- Arm4 %>% 
+  filter(redcap_event_name == "tx2_arm_4")
+
+Arm4 <- Arm4 %>%
+  filter(redcap_event_name != "tx2_arm_4")
+
+# For some reason Arm4 has a record_id named test - we will filter this out too
+
+Arm4 <- Arm4 %>%
+  filter(record_id != "test")
+```
+
+
+
+
 Compare record_ids between the arms to determine if there are any duplicates.
 
 ```{r}
@@ -74,7 +94,59 @@ cat("Common IDs between Arm 2 and Arm 4:", common_arm_2_4, "\n")
 cat("Common IDs between Arm 3 and Arm 4:", common_arm_3_4, "\n")
 ```
 
+Now that we've determined Arm 2 and Arm 4 both have duplicates, we need to ensure that the information in these data frames are in fact duplicates of each other - or whether one has more data points filled than the other. We will essentially compare the 2 and then copy whatever is extra onto Arm 4 (as we are currently working with this data set).
+
+Note that this is hard coded for Arm4 and Arm2, update and adapt where applicapble based on the results of the previous cell
 
 
+```{r}
 
+# Identify common record_ids across Arm2 and 4
+common_ids_2_4 <- intersect(Arm2$record_id, Arm4$record_id) 
+
+# Filter both data frames to include only the common record IDs
+filtered_Arm2 <- Arm2 %>% filter(record_id %in% common_ids_2_4)
+filtered_Arm4 <- Arm4 %>% filter(record_id %in% common_ids_2_4)
+
+# Merge the filtered data from Arm2 and 4 based on record_id
+comparison_df <- merge(filtered_Arm2, filtered_Arm4, by = "record_id", suffixes = c("_arm2", "_arm4"))
+
+# Compare each column and update directly
+for (col in setdiff(names(filtered_Arm2), "record_id")) {
+  col_arm2 <- paste0(col, "_arm2")
+  col_arm4 <- paste0(col, "_arm4")
+  
+  # Compare and decide to update
+  comparison_df[[col_arm4]] <- ifelse(comparison_df[[col_arm2]] != comparison_df[[col_arm4]] & !is.na(comparison_df[[col_arm2]]),
+                                      comparison_df[[col_arm2]],
+                                      comparison_df[[col_arm4]])
+}
+
+# Drop the arm2 columns and rename arm4 columns to their original names
+updated_arm_4 <- comparison_df %>%
+  select(record_id, ends_with("_arm4")) %>%
+  rename_with(~ sub("_arm4", "", .), ends_with("_arm4"))
+
+
+# Append these rows to updated_arm_4
+complete_arm_4 <- bind_rows(updated_arm_4,  anti_join(Arm4, updated_arm_4, by = "record_id"))
+
+```
+
+(Optional) Remove intermediary data frames
+
+```{r}
+rm(comparison_df, filtered_Arm2, filtered_Arm4, updated_arm_4)
+```
+
+
+Now that we have the duplicates sorted we can now merge the arms together, note that we are going to merge Arm1, Arm2, Arm3 and Arm4. The steps above have effectively combined the duplicates seen in Arm2 and Arm4 under complete_arm_4 which means that when we merge the arms together, we need to ensure we are ONLY merging the non-duplicates from Arm2. All Arms will be merged to the dataframe SPINR 
+
+```{r}
+
+# Merge all arms together into one dataframe. Anti_join is used here to find the unique record_ids between Arm2 and complete_arm_4 thereby allowing us to merge the non duplicates in Arm2, 
+
+SPINR <- bind_rows(Arm1, anti_join(Arm2, complete_arm_4, by = "record_id"), Arm3, complete_arm_4)
+
+```
 
