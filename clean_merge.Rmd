@@ -4,26 +4,77 @@ output: html_document
 date: "`r Sys.Date()`"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+load libraries 
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Load up data
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
 
-```{r cars}
-summary(cars)
+Data <- read.csv("/home/aabdulrasul/Documents/Projects/SPINR/SPN30IdentificationO_DATA_2024-09-05_1113.csv")
+
+# Run any pre-processing steps here that make the data readable - e.g, turn blanks "" into NA
+
+# Replace blank with NA
+
+replace_blank_with_na <- function(x) {
+  if (is.character(x)) {
+    x <- na_if(x, "")
+  }
+  return(x)
+}
+
+Data <- Data %>% mutate(across(everything(), ~ replace_blank_with_na(.)))
+  
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+Data set has 4 arms, we will separate them into 4 separate data frames. The logic behind this is to clean and process each on before we merge them into one final data frame
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+
+Arm1 <- Data %>% filter(grepl("_arm_1$", redcap_event_name)) # ASD
+Arm2 <- Data %>% filter(grepl("_arm_2$", redcap_event_name)) # SSD in SPINS
+Arm3 <- Data %>% filter(grepl("_arm_3$", redcap_event_name)) # Control
+Arm4 <- Data %>% filter(grepl("_arm_4$", redcap_event_name)) # Repeat scan using some of the original study 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Compare record_ids between the arms to determine if there are any duplicates.
+
+```{r}
+
+# First, extract the record_id columns from each dataframe
+record_ids_arm_1 <- Arm1$record_id
+record_ids_arm_2 <- Arm2$record_id
+record_ids_arm_3 <- Arm3$record_id
+record_ids_arm_4 <- Arm4$record_id
+
+# Find common record_ids between each pair of arms
+common_arm_1_2 <- intersect(record_ids_arm_1, record_ids_arm_2)
+common_arm_1_3 <- intersect(record_ids_arm_1, record_ids_arm_3)
+common_arm_1_4 <- intersect(record_ids_arm_1, record_ids_arm_4)
+common_arm_2_3 <- intersect(record_ids_arm_2, record_ids_arm_3)
+common_arm_2_4 <- intersect(record_ids_arm_2, record_ids_arm_4)
+common_arm_3_4 <- intersect(record_ids_arm_3, record_ids_arm_4)
+
+# Print the results
+cat("Common IDs between Arm 1 and Arm 2:", common_arm_1_2, "\n")
+cat("Common IDs between Arm 1 and Arm 3:", common_arm_1_3, "\n")
+cat("Common IDs between Arm 1 and Arm 4:", common_arm_1_4, "\n")
+cat("Common IDs between Arm 2 and Arm 3:", common_arm_2_3, "\n")
+cat("Common IDs between Arm 2 and Arm 4:", common_arm_2_4, "\n")
+cat("Common IDs between Arm 3 and Arm 4:", common_arm_3_4, "\n")
+```
+
+
+
+
+
