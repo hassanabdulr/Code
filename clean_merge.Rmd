@@ -150,6 +150,33 @@ complete_arm_4 <- bind_rows(updated_arm_4,  anti_join(Arm4, updated_arm_4, by = 
 
 ```
 
+
+Now that we have the completed arms, we will now designate them into their respective groups
+
+Arm1 corresponds to ASD
+Arm2 corresponds to SSD/SPINS
+Arm3 corresponds to Control
+Arm4 corresponds to SPINR (not this will include the duplicates seen in Arm2)
+
+```{r}
+Arm1 <- Arm1 %>%
+  mutate(redcap_event_name = "ASD") %>%
+  rename(group = redcap_event_name)
+
+Arm2 <- Arm2 %>%
+  mutate(redcap_event_name = "SSD") %>%
+  rename(group = redcap_event_name)
+
+Arm3 <- Arm3 %>%
+  mutate(redcap_event_name = "Control") %>%
+  rename(group = redcap_event_name)
+
+complete_arm_4 <- complete_arm_4 %>%
+  mutate(redcap_event_name = "SPINR") %>%
+  rename(group = redcap_event_name)
+```
+
+
 (Optional) Remove intermediary data frames
 
 ```{r}
@@ -167,6 +194,10 @@ MergedDF <- bind_rows(Arm1, anti_join(Arm2, complete_arm_4, by = "record_id"), A
 
 ```
 
+
+Create groups corresponding to arm participant is from
+
+
 Some metrics for us to keep track of (in case we were wondering)
 
 Note we have recruited 88 participants total (see recruitment.rmd)
@@ -176,6 +207,56 @@ Note we have recruited 88 participants total (see recruitment.rmd)
 cat("Data collected from", sum(MergedDF$elg_form_complete == "1", na.rm = TRUE), "Eligible Participants\n")
 
 ```
+
+
+## Demographics
+
+```{r}
+
+SPINR_demo <-
+  MergedDF %>%
+  select(record_id, group, demo_doa, np_fact_handedness,
+         demo_sex_birth, demo_age_study_entry,
+         demo_race___1_asian_east, demo_race___2_asian_southeast, demo_race___3_asian_south,
+         demo_race___4_black_african, demo_race___5_black_na, demo_race___6_black_carribean,
+         demo_race___7_firstnations, demo_race___8_indian_caribbean, demo_race___9_indigenous, demo_race___10_inuit,            demo_race___11_latin, demo_race___12_metis, demo_race___13_middleeastern, demo_race___14_white,                        demo_race___15_white_na, demo_race___16_mixed, demo_race___17_noanswer, demo_race___18_unknown,                        demo_race___19_other, demo_highest_grade_self, np_composite_tscore) %>%
+
+    mutate(sex = factor(demo_sex_birth,
+                      levels = c(1, 2, 3, 4),
+                      labels = c("Female", "Male", "Intersex", "Prefer not to Answer")),
+  
+            race = case_when(
+                          demo_race___1_asian_east == 1 ~ "Asian - East",
+                          demo_race___2_asian_southeast == 1 ~ "Asian - South East",
+                          demo_race___3_asian_south == 1 ~ "Asian - South Asia",
+                          demo_race___4_black_african == 1 ~ "Black - African",
+                          demo_race___5_black_na == 1 ~ "Black - African American",
+                          demo_race___6_black_carribean == 1 ~ "Black - Caribbean",
+                          demo_race___7_firstnations == 1 ~ "Native - First Nation",
+                          demo_race___8_indian_caribbean == 1 ~ "South Asian - Caribbean",
+                          demo_race___9_indigenous == 1 ~ "Native - American",
+                          demo_race___10_inuit == 1 ~ "Native - Inuit",
+                          demo_race___11_latin == 1 ~ "Latin American",
+                          demo_race___12_metis == 1 ~ "Native - Metis",
+                          demo_race___13_middleeastern == 1 ~ "Middle Eastern",
+                          demo_race___14_white == 1 ~ "White - European",
+                          demo_race___15_white_na == 1 ~ "White - North American",
+                          demo_race___16_mixed == 1 ~ "More than one race",
+                          demo_race___17_noanswer == 1 ~ "No Answer",
+                          demo_race___18_unknown == 1 ~ "Unknown",
+                          demo_race___18_unknown == 1 ~ "Other" ))
+
+
+SPINR_demo <- SPINR_demo %>%
+  select(record_id, group, demo_doa, np_fact_handedness, sex, demo_age_study_entry, race, demo_highest_grade_self)
+                          
+        
+```
+
+
+
+
+
 
 ## Neuropsych Assessments
 
