@@ -192,6 +192,14 @@ Now that we have the duplicates sorted we can now merge the arms together, note 
 
 MergedDF <- bind_rows(Arm1, anti_join(Arm2, complete_arm_4, by = "record_id"), Arm3, complete_arm_4)
 
+# We will now collapse repeated record_ids to form one record_id filling in 
+
+# Collapse duplicate record_id entries in MergedD` by grouping by record_id and summarizing each column for each column within the same `record_id`. Using ~na.omit we remove all NA values and retain only the first non-NA value encountered, therefore it doesn't matter whether the non-NA value is in the first or second row. This gives us a single consolidated row per record_id if a duplicate exists (there are no triple repeats). If all values are NA within a column for a specific record_id, the resulting value for that column will be NA.
+
+MergedDF <- MergedDF %>%
+  group_by(record_id) %>%
+  summarise_all(~na.omit(.)[1])
+
 ```
 
 
@@ -213,6 +221,10 @@ cat("Data collected from", sum(MergedDF$elg_form_complete == "1", na.rm = TRUE),
 
 ```{r}
 
+# Create a new dataframe SPINR_demo which will house the main demographic information from MergedDF. This includes the participants, age at the start of the study, their handedness, group, assigned sex at birth, race, highest education amd neuropsych composite score
+
+# This was adapted from SPASD_SPINS_redcap_wrangling.Rmd
+
 SPINR_demo <-
   MergedDF %>%
   select(record_id, group, demo_doa, np_fact_handedness,
@@ -221,9 +233,13 @@ SPINR_demo <-
          demo_race___4_black_african, demo_race___5_black_na, demo_race___6_black_carribean,
          demo_race___7_firstnations, demo_race___8_indian_caribbean, demo_race___9_indigenous, demo_race___10_inuit,            demo_race___11_latin, demo_race___12_metis, demo_race___13_middleeastern, demo_race___14_white,                        demo_race___15_white_na, demo_race___16_mixed, demo_race___17_noanswer, demo_race___18_unknown,                        demo_race___19_other, demo_highest_grade_self, np_composite_tscore) %>%
 
+  # We are setting assigned sex at birth as a factor for analysis
+  
     mutate(sex = factor(demo_sex_birth,
                       levels = c(1, 2, 3, 4),
                       labels = c("Female", "Male", "Intersex", "Prefer not to Answer")),
+ 
+  # Renaming the responses for the demo race drop down to be more clear. case_when used to vectorise the data thereby giving us one column - race - with the respective participants responses.
   
             race = case_when(
                           demo_race___1_asian_east == 1 ~ "Asian - East",
@@ -246,25 +262,28 @@ SPINR_demo <-
                           demo_race___18_unknown == 1 ~ "Unknown",
                           demo_race___18_unknown == 1 ~ "Other" ))
 
+# Construct final dataframe with the post processed columns
 
 SPINR_demo <- SPINR_demo %>%
-  select(record_id, group, demo_doa, np_fact_handedness, sex, demo_age_study_entry, race, demo_highest_grade_self)
+  select(record_id, group, demo_doa, np_fact_handedness, sex, demo_age_study_entry, race, demo_highest_grade_self, np_composite_tscore)
                           
         
 ```
 
 
-
-
-
-
 ## Neuropsych Assessments
 
-The following Neuropsych assessments are collected, RMET (Reading The Mind in The Eyes Test), ER-40 (Penn Emotion Recognition Test), and, TASIT-R (The Awareness of Social Inference Test - Revised) Along with various clinical assessments. We will create a new dataframe combining all of these into one from MergedDF - this new dataframe will bec called Neuro
+The following Neuropsych assessments are collected, RMET (Reading The Mind in The Eyes Test), ER-40 (Penn Emotion Recognition Test), and, TASIT-R (The Awareness of Social Inference Test - Revised) Along with various clinical assessments. We will create a new dataframe combining all of these into one from MergedDF - this new dataframe will bec called SPINR_neuro
 
 ```{r}
+RMET
 
- 
+TASIT
+
+PENN
+BSFS
+
+neuropsych domains 
 
 ```
 
