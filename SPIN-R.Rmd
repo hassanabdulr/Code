@@ -38,9 +38,7 @@ Data <- Data %>% mutate(across(everything(), ~ replace_blank_with_na(.)))
   
 ```
 
-
 ### Merge
-
 
 Data set has 4 arms, we will separate them into 4 separate data frames. The logic behind this is to clean and process each on before we merge them into one final data frame
 
@@ -69,8 +67,6 @@ Arm4 <- Arm4 %>%
 Arm4 <- Arm4 %>%
   filter(record_id != "test")
 ```
-
-
 
 ### Merge : Find Duplicates
 
@@ -146,7 +142,6 @@ updated_arm_4 <- comparison_df %>%
   select(record_id, ends_with("_arm4")) %>%
   rename_with(~ sub("_arm4", "", .), ends_with("_arm4"))
 
-
 # Append these rows to updated_arm_4
 complete_arm_4 <- bind_rows(updated_arm_4,  anti_join(Arm4, updated_arm_4, by = "record_id"))
 
@@ -178,7 +173,6 @@ complete_arm_4 <- complete_arm_4 %>%
   rename(group = redcap_event_name)
 ```
 
-
 (Optional) Remove intermediary data frames
 
 ```{r}
@@ -205,19 +199,6 @@ MergedDF <- MergedDF %>%
 ```
 
 
-Create groups corresponding to arm participant is from
-
-
-Some metrics for us to keep track of (in case we were wondering)
-
-Note we have recruited 88 participants total (see recruitment.rmd)
-
-```{r}
-
-cat("Data collected from", sum(MergedDF$elg_form_complete == "1", na.rm = TRUE), "Eligible Participants\n")
-
-```
-
 
 ## Demographics
 
@@ -229,7 +210,7 @@ cat("Data collected from", sum(MergedDF$elg_form_complete == "1", na.rm = TRUE),
 
 SPINR_demo <-
   MergedDF %>%
-  select(record_id, group, demo_doa, np_fact_handedness,
+  select(record_id, group, demo_doa,demo_dob, np_fact_handedness,
          demo_sex_birth, demo_age_study_entry,
          demo_race___1_asian_east, demo_race___2_asian_southeast, demo_race___3_asian_south,
          demo_race___4_black_african, demo_race___5_black_na, demo_race___6_black_carribean,
@@ -267,7 +248,7 @@ SPINR_demo <-
 # Construct final dataframe with the post processed columns
 
 SPINR_demo <- SPINR_demo %>%
-  select(record_id, group, demo_doa, np_fact_handedness, sex, demo_age_study_entry, race, demo_highest_grade_self, np_composite_tscore)
+  select(record_id, group, demo_doa, demo_dob, np_fact_handedness, sex, demo_age_study_entry, race, demo_highest_grade_self, np_composite_tscore)
                           
         
 ```
@@ -284,7 +265,7 @@ Adapted from SPASD_SPINS_redcap_wrangling.Rmd
 
 SPINR_neuro <-
     MergedDF %>%
-      select(record_id, group, np_fact_handedness,
+      select(record_id,
              
              # Brief Psychiatric Rating Scale
              
@@ -411,26 +392,48 @@ SPINR_neuro <-
              # Beck Depression Inventory
              
              total_score)
-             
-             
-             
-             
 
-             
-             
-      
-    
-    
+# Rename Beck Depression Inventory - the variable is currently total_score, which is super ambiguious - renaming variable to bdi_total.
+
+names(SPINR_neuro)[names(SPINR_neuro) == 'total_score'] <- 'bdi_total'
 
 ```
-
-
 
 
 # Analysis
 
 
+### Model
 
+We are now going to construct a new data frame SPINR_model - that combines our variables of interest from the SPINR_demo and SPINR_neuro
+
+```{r}
+
+# Select columns we want from SPINR_demo
+
+SPINR_model <- SPINR_demo %>%
+  select(1:10) # adjust as needed
+
+# Select the specific columns we want from SPINR_neuro
+
+SPINR_neuro_selected_columns <- SPINR_neuro[, c(1, 2:7)] # we need to also extract record_id to ensure we can join using it. We are also skipping column 2 as thats the group and we don't need a duplicate
+
+# Now we will join the selected column based on the record_id
+
+SPINR_model <- left_join(SPINR_model, SPINR_neuro_selected_columns, by = "record_id")
+
+# Not sure if this is necessary but we are also going to add a new column (age) which will reflect their age at testing calculated using demo_doa and demo_dob -- note that participants dob are all 15-MM-YY to maintain privacy(?)
+
+SPINR_model <- SPINR_model %>%
+  mutate(
+    demo_dob = as.Date(demo_dob, format = "%Y-%m-%d"), 
+    demo_doa = as.Date(demo_doa, format = "%Y-%m-%d"),  
+    age = interval(start = demo_dob, end = demo_doa) / years(1)
+  )
+SPINR_model <- SPINR_model %>%
+  select(names(.)[1], age, everything())
+
+```
 
 
 
@@ -481,7 +484,7 @@ Participants <- read.csv("/home/aabdulrasul/Documents/Projects/SPINR/EConsentSPN
 
 Participants <- Participants %>% mutate(across(everything(), ~ replace_blank_with_na(.)))
 ```
-
+ 
 
 We will use the signed form to determine when the participant was recruited into the study. And also whether or not they actually agreed to consenting to the study.
 
@@ -505,14 +508,16 @@ Summarizing recruitment stats
 # Adding a year and month column
 
 Participants_consented <- Participants_consented %>%
-  mutate(year = year(landing_page_timestamp),
-         month = floor_date(landing_page_timestamp, "month"))
+  mutate(year = year(landing_page_timestamp), 
+         month = floor_date(landing_page_timestamp, "month")) # rounds the month
 
 monthly_recruitment <- Participants_consented %>%
-  count(year, month) %>%
+  count(year, month) %>% # counts year and month
   arrange(year, month) %>%
   group_by(year) %>%
-  mutate(cumulative_participants = cumsum(n))
+  mutate(cumulative_participants = cumsum(n)) # 
+
+# Filter out participants that we may have missed in previous steps
 
 monthly_recruitment <- monthly_recruitment %>%
   filter(!is.na(month), !is.na(n), !is.na(cumulative_participants))
@@ -520,6 +525,8 @@ monthly_recruitment <- monthly_recruitment %>%
 
 ```
 
+
+### Visualization
 
 Visualization (Accross the years)
 
@@ -542,13 +549,17 @@ ggplot(monthly_recruitment, aes(x = month)) +   # monthly recruitment has all th
   geom_text(data = last_cumulative, aes(x = last_month, y = last_cumulative - 5.75, label = last_cumulative), # position adjusted here -8
             vjust = -0.5, hjust = 1.1, color = "red", size = 3) +  # Final cumulative number, adjust size of text here 
   
+ # Design plot
   
   labs(title = "Recruitment Overview by Year",
        x = "Month",
        y = "Number of Participants") +
   
   
-  facet_wrap(~year, scales = "free_x") +
+  # We are going to set x axis free as some years have not been recruiting for the complete year, thereby setting x axis free will give us a clean image that doesn't cut off halfway. We also are including year here to form a grid of plots 
+  
+  facet_wrap(~year, scales = "free_x") + 
+
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # adjust x axis legibility here
 
@@ -569,16 +580,14 @@ ggplot(total_recruitment, aes(x = month)) +   # monthly recruitment has all the 
   geom_text(aes(y = n, label = n), vjust = -0.5, color = "black", size = 3) +  # number of participants above hist
   
  geom_line(aes(y = cumulative_participants, group = 1), color = "red", linetype = "dashed") +  # Dashed line for cumulative participants
-  geom_text(data = total_recruitment[nrow(total_recruitment), ], 
-            aes(x = month, y = cumulative_participants, label = cumulative_participants),
-            hjust = 1.1, vjust = -0.5, color = "red", size = 3)  
+  geom_text(data = total_recruitment[nrow(total_recruitment), ], # use total_recruitment to add the final cumulative number of participants recruited into the study 
+            aes(x = month, y = cumulative_participants, label = cumulative_participants), # adjust label height, colur and size here 
+            hjust = 1.1, vjust = -0.5, color = "red", size = 3)   
 
   
   labs(title = "Recruitment Overview",
        x = "Month",
        y = "Number of Participants") +
-  
-  
   
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # adjust x axis legibility here
