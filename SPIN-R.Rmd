@@ -4,7 +4,7 @@ output: html_document
 date: "`r Sys.Date()`"
 ---
 
-load libraries 
+# Libraries 
 
 ```{r}
 library(tidyr)
@@ -13,6 +13,9 @@ library(ggplot2)
 library(lubridate)
 
 ```
+
+
+# Data Preparation And Wrangling 
 
 Load up data
 
@@ -100,7 +103,6 @@ cat("Common IDs between Arm 3 and Arm 4:", common_arm_3_4, "\n")
 
 
 Filter out problematic duplicate record id : SPN30_CMH_043281 exists in both Arm2 and Arm4, however, Arm2 has a partially completed timepoint 1 dataset, this is causing some issues in the merge process as the same participant seemingly has completed the timepoint 1 battery in Arm4 which was completed a couple of days apart from Arm2. As such we can assume Arm4 is the more accurate dataset. therefore we will remove SPN30_CMH_043281 from Arm2.
-
 
 
 ```{r}
@@ -423,4 +425,163 @@ SPINR_neuro <-
 ```
 
 
+
+
+# Analysis
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Recruitment 
+
+Load up data
+
+```{r}
+
+Participants <- read.csv("/home/aabdulrasul/Documents/Projects/SPINR/EConsentSPN30Identif_DATA_2024-09-05_1438.csv")
+
+# Run any pre-processing steps here that make the data readable - e.g, turn blanks "" into NA
+
+# Replace blank with NA (see Data Preparation)
+
+Participants <- Participants %>% mutate(across(everything(), ~ replace_blank_with_na(.)))
+```
+
+
+We will use the signed form to determine when the participant was recruited into the study.
+
+```{r}
+
+## Filter for participants that have consented to the study using the variable consent_agree__1 = 1 (where 1 is "I agree" )
+
+Participants_consented <- Participants %>% filter(consent_agree___1 == 1)
+
+# Now, we will use landing_page_timestamps to determine the date they were recruited into the study
+
+Participants_consented$landing_page_timestamp <- as.Date(Participants_consented$landing_page_timestamp, format = "%Y-%m-%d") # remove the time stamp and ensure the date is properly formatted
+
+```
+
+
+Summarizing recruitment stats 
+
+```{r}
+
+# Adding a year and month column
+
+Participants_consented <- Participants_consented %>%
+  mutate(year = year(landing_page_timestamp),
+         month = floor_date(landing_page_timestamp, "month"))
+
+monthly_recruitment <- Participants_consented %>%
+  count(year, month) %>%
+  arrange(year, month) %>%
+  group_by(year) %>%
+  mutate(cumulative_participants = cumsum(n))
+
+monthly_recruitment <- monthly_recruitment %>%
+  filter(!is.na(month), !is.na(n), !is.na(cumulative_participants))
+
+
+```
+
+
+Visualization (Accross the years)
+
+```{r}
+
+# Calculate the last cumulative point for each year this will give us the final number of participants recruited that year
+
+last_cumulative <- monthly_recruitment %>%
+  group_by(year) %>%
+  summarize(last_cumulative = last(cumulative_participants),
+            last_month = last(month))
+
+# Plot a grid of a histogram (monthly recrutiment) against a line graph (cumulative recruitment)
+
+ggplot(monthly_recruitment, aes(x = month)) +   # monthly recruitment has all the information we need
+  geom_col(aes(y = n), fill = "blue") + # histogtram details
+  geom_text(aes(y = n, label = n), vjust = -0.2, color = "black", size = 3) +  # number of participants above hist
+  
+  geom_line(aes(y = cumulative_participants, group = 1), color = "red", linetype = "dashed") + # line graph of cumulative participants
+  geom_text(data = last_cumulative, aes(x = last_month, y = last_cumulative - 5.75, label = last_cumulative), # position adjusted here -8
+            vjust = -0.5, hjust = 1.1, color = "red", size = 3) +  # Final cumulative number, adjust size of text here 
+  
+  
+  labs(title = "Recruitment Overview by Year",
+       x = "Month",
+       y = "Number of Participants") +
+  
+  
+  facet_wrap(~year, scales = "free_x") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # adjust x axis legibility here
+
+```
+
+Visualization (timeline)
+
+```{r}
+
+
+total_recruitment <- Participants_consented %>% count(month = floor_date(as.Date(Participants_consented$landing_page_timestamp, format = "%Y-%m-%d"), "month")) %>% arrange(month) %>% mutate(cumulative_participants = cumsum(n))
+
+
+# Plot a grid of a histogram (monthly recrutiment) against a line graph (cumulative recruitment)
+
+ggplot(total_recruitment, aes(x = month)) +   # monthly recruitment has all the information we need
+  geom_col(aes(y = n), fill = "blue") + # histogtram details
+  geom_text(aes(y = n, label = n), vjust = -0.5, color = "black", size = 3) +  # number of participants above hist
+  
+ geom_line(aes(y = cumulative_participants, group = 1), color = "red", linetype = "dashed") +  # Dashed line for cumulative participants
+  geom_text(data = total_recruitment[nrow(total_recruitment), ], 
+            aes(x = month, y = cumulative_participants, label = cumulative_participants),
+            hjust = 1.1, vjust = -0.5, color = "red", size = 3)  
+
+  
+  labs(title = "Recruitment Overview",
+       x = "Month",
+       y = "Number of Participants") +
+  
+  
+  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # adjust x axis legibility here
+
+```
 
