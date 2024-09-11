@@ -483,7 +483,7 @@ Participants <- Participants %>% mutate(across(everything(), ~ replace_blank_wit
 ```
 
 
-We will use the signed form to determine when the participant was recruited into the study.
+We will use the signed form to determine when the participant was recruited into the study. And also whether or not they actually agreed to consenting to the study.
 
 ```{r}
 
